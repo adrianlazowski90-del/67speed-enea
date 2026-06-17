@@ -8,17 +8,18 @@
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   :root {
-    --bg: #0a0e1a;
-    --panel: #131a2e;
-    --accent: #ff5722;
-    --accent2: #ffc107;
-    --text: #e8ecf5;
-    --muted: #7a86a8;
+    --bg: #1a0608;
+    --panel: #2a0d10;
+    --accent: #e42d28;
+    --accent2: #ff7a30;
+    --enea-red: #e42d28;
+    --text: #fff4f0;
+    --muted: #c99a92;
     --good: #4caf50;
   }
   body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    background: radial-gradient(circle at 50% 0%, #1a2240, #0a0e1a 70%);
+    background: radial-gradient(circle at 50% 0%, #5a1216, #1a0608 70%);
     color: var(--text);
     min-height: 100vh;
     display: flex;
@@ -51,7 +52,7 @@
     background: #000;
     border-radius: 18px;
     overflow: hidden;
-    border: 2px solid #232c48;
+    border: 2px solid #5a1216;
   }
   #video, #canvas {
     position: absolute;
@@ -80,6 +81,443 @@
     top: 0; left: 0; right: 0;
     display: flex;
     justify-content: space-between;
+    padding: 14px 18px;
+    z-index: 4;
+    pointer-events: none;
+  }
+  .hud .box {
+    background: rgba(10,14,26,0.7);
+    border-radius: 12px;
+    padding: 8px 16px;
+    text-align: center;
+  }
+  .hud .label { font-size: 0.7rem; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+  .hud .val { font-size: 1.8rem; font-weight: 800; line-height: 1.1; }
+  #timer .val { color: var(--accent2); }
+  #count .val { color: var(--accent); }
+  .countdown {
+    font-size: 7rem;
+    font-weight: 900;
+    color: var(--accent2);
+  }
+  button {
+    font-family: inherit;
+    font-weight: 700;
+    border: none;
+    border-radius: 12px;
+    padding: 14px 32px;
+    font-size: 1.05rem;
+    cursor: pointer;
+    transition: transform .1s, filter .15s;
+  }
+  button:active { transform: scale(0.97); }
+  .btn-primary {
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    color: #1a1000;
+  }
+  .btn-primary:disabled { filter: grayscale(0.7) brightness(0.6); cursor: not-allowed; }
+  .btn-ghost {
+    background: transparent;
+    border: 1.5px solid #7a2a2e;
+    color: var(--text);
+  }
+  .result-score {
+    font-size: 5rem;
+    font-weight: 900;
+    color: var(--accent);
+    line-height: 1;
+    margin: 8px 0;
+  }
+  .result-sub { color: var(--muted); margin-bottom: 18px; }
+  .name-input {
+    font-family: inherit;
+    background: #1a0608;
+    border: 1.5px solid #7a2a2e;
+    color: var(--text);
+    border-radius: 10px;
+    padding: 10px 14px;
+    font-size: 1rem;
+    text-align: center;
+    margin-bottom: 12px;
+    width: 200px;
+  }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+  .panel {
+    background: var(--panel);
+    border-radius: 18px;
+    padding: 20px;
+    border: 1px solid #5a1216;
+  }
+  .panel h2 { font-size: 1.1rem; margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
+  .lb-row {
+    display: grid;
+    grid-template-columns: 36px 1fr auto;
+    align-items: center;
+    padding: 9px 10px;
+    border-radius: 10px;
+    gap: 10px;
+  }
+  .lb-row:nth-child(even) { background: rgba(255,255,255,0.025); }
+  .lb-row.you { background: rgba(228,45,40,0.18); border: 1px solid rgba(228,45,40,0.5); }
+  .lb-rank { font-weight: 800; color: var(--muted); text-align: center; }
+  .lb-row:nth-child(1) .lb-rank { color: #ffd700; }
+  .lb-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .lb-score { font-weight: 800; color: var(--accent); }
+  .empty { color: var(--muted); text-align: center; padding: 18px; font-size: 0.9rem; }
+  .status { font-size: 0.85rem; color: var(--muted); text-align: center; min-height: 20px; }
+  .instructions { font-size: 0.95rem; line-height: 1.5; max-width: 380px; color: #f0d6cf; margin-bottom: 20px; }
+  .clear-link { background: none; border: none; color: var(--muted); font-size: 0.8rem; cursor: pointer; padding: 4px; text-decoration: underline; }
+
+  /* Branding */
+  .brandbar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    margin-bottom: 4px;
+    flex-wrap: wrap;
+  }
+  .enea-logo {
+    display: inline-flex;
+    align-items: center;
+    background: #fff;
+    border-radius: 8px;
+    padding: 7px 16px;
+    box-shadow: 0 4px 18px rgba(228,45,40,0.35);
+  }
+  .enea-logo svg { display: block; }
+  .event-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,122,48,0.4);
+    border-radius: 999px;
+    padding: 6px 14px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: var(--accent2);
+  }
+  .tri-icons { font-size: 1rem; letter-spacing: 2px; }
+  .event-title {
+    font-size: 1.05rem;
+    font-weight: 800;
+    text-align: center;
+    margin: 10px 0 2px;
+    letter-spacing: 0.5px;
+  }
+  .event-title .red { color: var(--enea-red); }
+  .footer-credit {
+    margin-top: 22px;
+    font-size: 0.78rem;
+    color: var(--muted);
+    text-align: center;
+    line-height: 1.6;
+  }
+  .footer-credit strong { color: var(--accent2); }
+</style>
+</head>
+<body>
+  <div class="brandbar">
+    <span class="enea-logo">
+      <svg width="104" height="30" viewBox="0 0 104 30" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Enea">
+        <text x="0" y="24" font-family="Arial, Helvetica, sans-serif" font-weight="800" font-size="30" letter-spacing="-1" fill="#e42d28">enea</text>
+      </svg>
+    </span>
+    <span class="event-pill"><span class="tri-icons">🏊 🚴 🏃</span> Junior Triathlon</span>
+  </div>
+  <h1>67 SPEED</h1>
+  <p class="event-title">Strefa aktywności <span class="red">Enea Junior Poznań Triathlon</span></p>
+  <p class="tagline">Stań przed kamerą. Ramiona zgięte w łokciach. Pompuj jak najszybciej przez 20 sekund i pobij rekord!</p>
+
+  <div class="wrap">
+    <div class="stage">
+      <video id="video" playsinline></video>
+      <canvas id="canvas"></canvas>
+
+      <div class="hud">
+        <div class="box" id="count"><div class="label">Powtórzenia</div><div class="val" id="countVal">0</div></div>
+        <div class="box" id="timer"><div class="label">Czas</div><div class="val" id="timerVal">20.0</div></div>
+      </div>
+
+      <div class="overlay" id="overlayStart">
+        <p class="instructions">Kliknij start, zezwól na dostęp do kamery, ustaw się tak, by było widać Twoje ramiona, a następnie pompuj nimi w górę i w dół na zmianę.</p>
+        <button class="btn-primary" id="startBtn">Włącz kamerę</button>
+        <p class="status" id="statusMsg"></p>
+      </div>
+
+      <div class="overlay hidden" id="overlayCountdown">
+        <div class="countdown" id="countdownNum">3</div>
+      </div>
+
+      <div class="overlay hidden" id="overlayResult">
+        <p class="result-sub">Twój wynik</p>
+        <div class="result-score" id="finalScore">0</div>
+        <input class="name-input" id="nameInput" maxlength="14" placeholder="Twoje imię">
+        <div class="row">
+          <button class="btn-primary" id="saveBtn">Zapisz wynik</button>
+          <button class="btn-ghost" id="retryBtn">Jeszcze raz</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="row">
+      <button class="btn-primary" id="playBtn" disabled>Start (20s)</button>
+    </div>
+
+    <div class="panel">
+      <h2>🏆 Leaderboard</h2>
+      <div id="leaderboard"><div class="empty">Brak wyników. Bądź pierwszy!</div></div>
+      <div style="text-align:center;margin-top:8px;">
+        <button class="clear-link" id="clearBtn">Wyczyść leaderboard</button>
+      </div>
+    </div>
+  </div>
+
+  <p class="footer-credit">
+    Strefa aktywności <strong>Enea</strong> · <strong>Enea Junior Poznań Triathlon</strong><br>
+    Największa w Polsce impreza multisportowa dla dzieci · POSiR „Chwiałka", Poznań
+  </p>
+
+<script>
+const video = document.getElementById('video');
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const startBtn = document.getElementById('startBtn');
+const playBtn = document.getElementById('playBtn');
+const retryBtn = document.getElementById('retryBtn');
+const saveBtn = document.getElementById('saveBtn');
+const clearBtn = document.getElementById('clearBtn');
+const statusMsg = document.getElementById('statusMsg');
+const countVal = document.getElementById('countVal');
+const timerVal = document.getElementById('timerVal');
+const finalScore = document.getElementById('finalScore');
+const nameInput = document.getElementById('nameInput');
+const overlayStart = document.getElementById('overlayStart');
+const overlayCountdown = document.getElementById('overlayCountdown');
+const overlayResult = document.getElementById('overlayResult');
+const countdownNum = document.getElementById('countdownNum');
+const leaderboardEl = document.getElementById('leaderboard');
+
+const DURATION = 20;
+let pose, camStream;
+let playing = false, count = 0, lastScore = 0;
+let timerEnd = 0, rafTimer;
+let lastSaved = -1;
+
+// --- prosta detekcja: ruch nadgarstków w pionie, liczymy zmiany kierunku ---
+// Dla każdej ręki śledzimy wygładzoną pozycję Y nadgarstka i jej kierunek.
+// Każda zmiana kierunku (z dół na górę lub odwrotnie) z minimalną amplitudą = 1 powtórzenie.
+let arm = {
+  left:  { y:null, dir:0, lastExtreme:null },
+  right: { y:null, dir:0, lastExtreme:null }
+};
+let landmarksReady = false;
+const MIN_AMP = 0.02; // minimalna wysokość ruchu (ułamek wysokości kadru). Mniejsza = czulsze.
+
+let leaderboard = [];
+
+function loadLeaderboard() {
+  try {
+    leaderboard = JSON.parse(localStorage.getItem('lb67speed') || '[]');
+  } catch { leaderboard = []; }
+  renderLeaderboard();
+}
+function saveLeaderboardStore() {
+  try { localStorage.setItem('lb67speed', JSON.stringify(leaderboard)); } catch {}
+}
+function renderLeaderboard(highlightIdx = -1) {
+  const sorted = [...leaderboard].sort((a,b)=>b.score-a.score).slice(0,10);
+  if (!sorted.length) { leaderboardEl.innerHTML = '<div class="empty">Brak wyników. Bądź pierwszy!</div>'; return; }
+  leaderboardEl.innerHTML = sorted.map((e,i)=>`
+    <div class="lb-row ${e.t===highlightIdx?'you':''}">
+      <div class="lb-rank">${i+1}</div>
+      <div class="lb-name">${escapeHtml(e.name)}</div>
+      <div class="lb-score">${e.score}</div>
+    </div>`).join('');
+}
+function escapeHtml(s){ return s.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+// MediaPipe
+function onResults(results) {
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  const lm = results.poseLandmarks;
+  if (!lm) { landmarksReady = false; return; }
+  landmarksReady = true;
+
+  // landmarks: 11 L shoulder, 12 R shoulder, 13 L elbow, 14 R elbow, 15 L wrist, 16 R wrist
+  drawArms(lm);
+
+  if (playing) {
+    detectPump(lm);
+  }
+}
+
+function drawArms(lm) {
+  const w = canvas.width, h = canvas.height;
+  const pts = [[11,13],[13,15],[12,14],[14,16],[11,12]];
+  ctx.lineWidth = 5;
+  ctx.strokeStyle = 'rgba(255,122,48,0.9)';
+  ctx.lineCap = 'round';
+  for (const [a,b] of pts) {
+    if (lm[a].visibility>0.3 && lm[b].visibility>0.3) {
+      ctx.beginPath();
+      ctx.moveTo(lm[a].x*w, lm[a].y*h);
+      ctx.lineTo(lm[b].x*w, lm[b].y*h);
+      ctx.stroke();
+    }
+  }
+  ctx.fillStyle = '#e42d28';
+  for (const i of [15,16]) {
+    if (lm[i] && lm[i].visibility>0.15) {
+      ctx.beginPath();
+      ctx.arc(lm[i].x*w, lm[i].y*h, 11, 0, Math.PI*2);
+      ctx.fill();
+    }
+  }
+}
+
+function detectPump(lm) {
+  // Śledzimy nadgarstki (15 = lewy, 16 = prawy) — Pose wykrywa je stabilniej
+  // niż czubki dłoni. Liczymy WYŁĄCZNIE ruch pionowy; łokcie i barki nie biorą
+  // udziału w zliczaniu. Każda zmiana kierunku góra<->dół o amplitudzie >= MIN_AMP
+  // to jedno powtórzenie. Działa też gdy widać jedną rękę.
+  const sides = [
+    { key:'left',  hand:15 },
+    { key:'right', hand:16 },
+  ];
+  for (const s of sides) {
+    const wr = lm[s.hand];
+    if (!wr || wr.visibility < 0.15) continue;
+    const a = arm[s.key];
+    const y = wr.y; // 0 = góra kadru, 1 = dół
+    if (a.y === null) { a.y = y; a.lastExtreme = y; continue; }
+
+    // wygładzenie, żeby drobne drgania nie liczyły się jako ruch
+    a.y = a.y * 0.4 + y * 0.6;
+    const newDir = a.y < a.lastExtreme ? -1 : 1; // -1 = w górę, 1 = w dół
+
+    if (a.dir === 0) {
+      a.dir = newDir;
+    } else if (newDir !== a.dir) {
+      // zmiana kierunku — sprawdź czy ruch był wystarczająco duży
+      if (Math.abs(a.y - a.lastExtreme) >= MIN_AMP) {
+        addRep();
+        a.dir = newDir;
+        a.lastExtreme = a.y;
+      }
+    } else {
+      // ten sam kierunek — aktualizuj skrajny punkt
+      if ((a.dir === -1 && a.y < a.lastExtreme) || (a.dir === 1 && a.y > a.lastExtreme)) {
+        a.lastExtreme = a.y;
+      }
+    }
+  }
+}
+
+function addRep() {
+  if (!playing) return;
+  count++;
+  countVal.textContent = count;
+}
+
+async function initCamera() {
+  statusMsg.textContent = 'Ładowanie modelu i kamery...';
+  startBtn.disabled = true;
+  try {
+    camStream = await navigator.mediaDevices.getUserMedia({ video: { width:640, height:480, facingMode:'user' }, audio:false });
+    video.srcObject = camStream;
+    await video.play();
+    canvas.width = video.videoWidth || 640;
+    canvas.height = video.videoHeight || 480;
+
+    pose = new Pose({ locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${f}` });
+    pose.setOptions({ modelComplexity:1, smoothLandmarks:true, minDetectionConfidence:0.5, minTrackingConfidence:0.5 });
+    pose.onResults(onResults);
+
+    const loop = async () => {
+      if (video.readyState >= 2) await pose.send({ image: video });
+      requestAnimationFrame(loop);
+    };
+    loop();
+
+    overlayStart.classList.add('hidden');
+    playBtn.disabled = false;
+  } catch (e) {
+    statusMsg.textContent = 'Nie udało się uzyskać dostępu do kamery: ' + e.message;
+    startBtn.disabled = false;
+  }
+}
+
+function startCountdown() {
+  if (!camStream) return;
+  overlayResult.classList.add('hidden');
+  overlayCountdown.classList.remove('hidden');
+  playBtn.disabled = true;
+  let n = 3;
+  countdownNum.textContent = n;
+  const iv = setInterval(()=>{
+    n--;
+    if (n<=0) { clearInterval(iv); overlayCountdown.classList.add('hidden'); beginRound(); }
+    else countdownNum.textContent = n;
+  }, 800);
+}
+
+function beginRound() {
+  playing = true;
+  count = 0;
+  countVal.textContent = '0';
+  arm = {
+    left:  { y:null, dir:0, lastExtreme:null },
+    right: { y:null, dir:0, lastExtreme:null }
+  };
+  timerEnd = performance.now() + DURATION*1000;
+  tickTimer();
+}
+
+function tickTimer() {
+  const remain = Math.max(0, (timerEnd - performance.now())/1000);
+  timerVal.textContent = remain.toFixed(1);
+  if (remain<=0) { endRound(); return; }
+  rafTimer = requestAnimationFrame(tickTimer);
+}
+
+function endRound() {
+  playing = false;
+  cancelAnimationFrame(rafTimer);
+  timerVal.textContent = '0.0';
+  lastScore = count;
+  finalScore.textContent = count;
+  overlayResult.classList.remove('hidden');
+  playBtn.disabled = false;
+  nameInput.focus();
+}
+
+startBtn.addEventListener('click', initCamera);
+playBtn.addEventListener('click', startCountdown);
+retryBtn.addEventListener('click', ()=>{ overlayResult.classList.add('hidden'); startCountdown(); });
+saveBtn.addEventListener('click', ()=>{
+  const name = (nameInput.value.trim() || 'Anonim').slice(0,14);
+  const t = Date.now();
+  leaderboard.push({ name, score: lastScore, t });
+  lastSaved = t;
+  saveLeaderboardStore();
+  renderLeaderboard(t);
+  overlayResult.classList.add('hidden');
+  nameInput.value = '';
+});
+clearBtn.addEventListener('click', ()=>{
+  leaderboard = [];
+  saveLeaderboardStore();
+  renderLeaderboard();
+});
+
+loadLeaderboard();
+</script>
+</body>
+</html>    justify-content: space-between;
     padding: 14px 18px;
     z-index: 4;
     pointer-events: none;

@@ -305,24 +305,25 @@ function drawArms(lm) {
     }
   }
   ctx.fillStyle = '#ff5722';
-  for (const i of [13,14,15,16]) {
-    if (lm[i].visibility>0.3) {
+  for (const i of [15,16,19,20]) {
+    if (lm[i] && lm[i].visibility>0.3) {
       ctx.beginPath();
-      ctx.arc(lm[i].x*w, lm[i].y*h, 7, 0, Math.PI*2);
+      ctx.arc(lm[i].x*w, lm[i].y*h, i>=19?10:6, 0, Math.PI*2);
       ctx.fill();
     }
   }
 }
 
 function detectPump(lm) {
-  // Śledzimy nadgarstki (15 = lewy, 16 = prawy). Liczymy każdą zmianę kierunku
-  // ruchu w pionie o amplitudzie >= MIN_AMP. Działa nawet gdy widać jedną rękę.
+  // Śledzimy dłonie (19 = lewa, 20 = prawa — punkt palca wskazującego z MediaPipe Pose).
+  // Liczymy każdą zmianę kierunku ruchu dłoni w pionie o amplitudzie >= MIN_AMP.
+  // Działa nawet gdy widać jedną dłoń.
   const sides = [
-    { key:'left',  wrist:15 },
-    { key:'right', wrist:16 },
+    { key:'left',  hand:19 },
+    { key:'right', hand:20 },
   ];
   for (const s of sides) {
-    const wr = lm[s.wrist];
+    const wr = lm[s.hand];
     if (!wr || wr.visibility < 0.3) continue;
     const a = arm[s.key];
     const y = wr.y; // 0 = góra kadru, 1 = dół

@@ -250,7 +250,7 @@ let arm = {
   right: { y:null, dir:0, lastExtreme:null }
 };
 let landmarksReady = false;
-const MIN_AMP = 0.03; // minimalna wysokość ruchu (ułamek wysokości kadru). Mniejsza = czulsze.
+const MIN_AMP = 0.02; // minimalna wysokość ruchu (ułamek wysokości kadru). Mniejsza = czulsze.
 
 let leaderboard = [];
 
@@ -305,26 +305,27 @@ function drawArms(lm) {
     }
   }
   ctx.fillStyle = '#ff5722';
-  for (const i of [15,16,19,20]) {
-    if (lm[i] && lm[i].visibility>0.3) {
+  for (const i of [15,16]) {
+    if (lm[i] && lm[i].visibility>0.15) {
       ctx.beginPath();
-      ctx.arc(lm[i].x*w, lm[i].y*h, i>=19?10:6, 0, Math.PI*2);
+      ctx.arc(lm[i].x*w, lm[i].y*h, 11, 0, Math.PI*2);
       ctx.fill();
     }
   }
 }
 
 function detectPump(lm) {
-  // Śledzimy dłonie (19 = lewa, 20 = prawa — punkt palca wskazującego z MediaPipe Pose).
-  // Liczymy każdą zmianę kierunku ruchu dłoni w pionie o amplitudzie >= MIN_AMP.
-  // Działa nawet gdy widać jedną dłoń.
+  // Śledzimy nadgarstki (15 = lewy, 16 = prawy) — Pose wykrywa je stabilniej
+  // niż czubki dłoni. Liczymy WYŁĄCZNIE ruch pionowy; łokcie i barki nie biorą
+  // udziału w zliczaniu. Każda zmiana kierunku góra<->dół o amplitudzie >= MIN_AMP
+  // to jedno powtórzenie. Działa też gdy widać jedną rękę.
   const sides = [
-    { key:'left',  hand:19 },
-    { key:'right', hand:20 },
+    { key:'left',  hand:15 },
+    { key:'right', hand:16 },
   ];
   for (const s of sides) {
     const wr = lm[s.hand];
-    if (!wr || wr.visibility < 0.3) continue;
+    if (!wr || wr.visibility < 0.15) continue;
     const a = arm[s.key];
     const y = wr.y; // 0 = góra kadru, 1 = dół
     if (a.y === null) { a.y = y; a.lastExtreme = y; continue; }

@@ -242,25 +242,26 @@ let playing = false, count = 0, lastScore = 0;
 let timerEnd = 0, rafTimer;
 let lastSaved = -1;
 
-// --- pose-based pumping detection ---
-// Track vertical position of each wrist relative to shoulder; count alternating up/down cycles.
-let armState = { left: null, right: null };   // 'up' | 'down'
-let smoothed = { left: 0, right: 0 };
+// --- prosta detekcja: ruch nadgarstków w pionie, liczymy zmiany kierunku ---
+// Dla każdej ręki śledzimy wygładzoną pozycję Y nadgarstka i jej kierunek.
+// Każda zmiana kierunku (z dół na górę lub odwrotnie) z minimalną amplitudą = 1 powtórzenie.
+let arm = {
+  left:  { y:null, dir:0, lastExtreme:null },
+  right: { y:null, dir:0, lastExtreme:null }
+};
 let landmarksReady = false;
+const MIN_AMP = 0.03; // minimalna wysokość ruchu (ułamek wysokości kadru). Mniejsza = czulsze.
 
 let leaderboard = [];
 
 function loadLeaderboard() {
-  (async () => {
-    try {
-      const r = await window.storage.get('leaderboard');
-      leaderboard = r ? JSON.parse(r.value) : [];
-    } catch { leaderboard = []; }
-    renderLeaderboard();
-  })();
+  try {
+    leaderboard = JSON.parse(localStorage.getItem('lb67speed') || '[]');
+  } catch { leaderboard = []; }
+  renderLeaderboard();
 }
 function saveLeaderboardStore() {
-  try { window.storage.set('leaderboard', JSON.stringify(leaderboard)); } catch {}
+  try { localStorage.setItem('lb67speed', JSON.stringify(leaderboard)); } catch {}
 }
 function renderLeaderboard(highlightIdx = -1) {
   const sorted = [...leaderboard].sort((a,b)=>b.score-a.score).slice(0,10);
@@ -314,25 +315,37 @@ function drawArms(lm) {
 }
 
 function detectPump(lm) {
-  // For each arm: compare wrist y to shoulder y. Up = wrist above midpoint threshold.
+  // Śledzimy nadgarstki (15 = lewy, 16 = prawy). Liczymy każdą zmianę kierunku
+  // ruchu w pionie o amplitudzie >= MIN_AMP. Działa nawet gdy widać jedną rękę.
   const sides = [
-    { key:'left', shoulder:11, wrist:15 },
-    { key:'right', shoulder:12, wrist:16 },
+    { key:'left',  wrist:15 },
+    { key:'right', wrist:16 },
   ];
   for (const s of sides) {
-    const sh = lm[s.shoulder], wr = lm[s.wrist];
-    if (sh.visibility<0.3 || wr.visibility<0.3) continue;
-    // metric: how high the wrist is relative to shoulder. negative = above shoulder
-    const rel = sh.y - wr.y;            // >0 means wrist above shoulder
-    smoothed[s.key] = smoothed[s.key]*0.5 + rel*0.5;
-    const v = smoothed[s.key];
-    const upThresh = 0.02, downThresh = -0.06;
-    const prev = armState[s.key];
-    if (v > upThresh && prev !== 'up') {
-      armState[s.key] = 'up';
-      if (prev === 'down' || prev === null) addRep();
-    } else if (v < downThresh && prev !== 'down') {
-      armState[s.key] = 'down';
+    const wr = lm[s.wrist];
+    if (!wr || wr.visibility < 0.3) continue;
+    const a = arm[s.key];
+    const y = wr.y; // 0 = góra kadru, 1 = dół
+    if (a.y === null) { a.y = y; a.lastExtreme = y; continue; }
+
+    // wygładzenie, żeby drobne drgania nie liczyły się jako ruch
+    a.y = a.y * 0.4 + y * 0.6;
+    const newDir = a.y < a.lastExtreme ? -1 : 1; // -1 = w górę, 1 = w dół
+
+    if (a.dir === 0) {
+      a.dir = newDir;
+    } else if (newDir !== a.dir) {
+      // zmiana kierunku — sprawdź czy ruch był wystarczająco duży
+      if (Math.abs(a.y - a.lastExtreme) >= MIN_AMP) {
+        addRep();
+        a.dir = newDir;
+        a.lastExtreme = a.y;
+      }
+    } else {
+      // ten sam kierunek — aktualizuj skrajny punkt
+      if ((a.dir === -1 && a.y < a.lastExtreme) || (a.dir === 1 && a.y > a.lastExtreme)) {
+        a.lastExtreme = a.y;
+      }
     }
   }
 }
@@ -389,8 +402,10 @@ function beginRound() {
   playing = true;
   count = 0;
   countVal.textContent = '0';
-  armState = { left:null, right:null };
-  smoothed = { left:0, right:0 };
+  arm = {
+    left:  { y:null, dir:0, lastExtreme:null },
+    right: { y:null, dir:0, lastExtreme:null }
+  };
   timerEnd = performance.now() + DURATION*1000;
   tickTimer();
 }

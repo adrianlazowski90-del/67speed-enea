@@ -143,6 +143,17 @@
     margin: 8px 0;
   }
   .result-sub { color: var(--muted); margin-bottom: 18px; }
+  .rank-info { display: flex; flex-direction: column; align-items: center; gap: 6px; margin-top: 4px; }
+  .rank-info.hidden { display: none; }
+  .rank-place {
+    font-size: 2rem;
+    font-weight: 900;
+    color: var(--accent);
+    line-height: 1.1;
+    text-align: center;
+  }
+  .rank-place .medal { font-size: 2.4rem; display: block; margin-bottom: 2px; }
+  .rank-detail { color: var(--muted); font-size: 0.95rem; margin-bottom: 14px; text-align: center; }
   .name-input {
     font-family: inherit;
     background: var(--soft);
@@ -268,9 +279,14 @@
         <p class="result-sub">Twój wynik</p>
         <div class="result-score" id="finalScore">0</div>
         <input class="name-input" id="nameInput" maxlength="14" placeholder="Twoje imię">
-        <div class="row">
+        <div class="row" id="saveRow">
           <button class="btn-primary" id="saveBtn">Zapisz wynik</button>
           <button class="btn-ghost" id="retryBtn">Jeszcze raz</button>
+        </div>
+        <div class="rank-info hidden" id="rankInfo">
+          <div class="rank-place" id="rankPlace"></div>
+          <div class="rank-detail" id="rankDetail"></div>
+          <button class="btn-primary" id="doneBtn">Zagraj ponownie</button>
         </div>
       </div>
     </div>
@@ -290,6 +306,7 @@
 
   <p class="footer-credit">
     Strefa aktywności <strong>Enea</strong> · <strong>Enea Junior Poznań Triathlon</strong><br>
+    Największa w Polsce impreza multisportowa dla dzieci · POSiR „Chwiałka", Poznań
   </p>
 
 <script>
@@ -311,6 +328,11 @@ const overlayCountdown = document.getElementById('overlayCountdown');
 const overlayResult = document.getElementById('overlayResult');
 const countdownNum = document.getElementById('countdownNum');
 const leaderboardEl = document.getElementById('leaderboard');
+const saveRow = document.getElementById('saveRow');
+const rankInfo = document.getElementById('rankInfo');
+const rankPlace = document.getElementById('rankPlace');
+const rankDetail = document.getElementById('rankDetail');
+const doneBtn = document.getElementById('doneBtn');
 
 const DURATION = 20;
 let pose, camStream;
@@ -328,17 +350,49 @@ let arm = {
 let landmarksReady = false;
 const MIN_AMP = 0.02; // minimalna wysokość ruchu (ułamek wysokości kadru). Mniejsza = czulsze.
 
-let leaderboard = [];
+// ===========================================================
+//  KONFIGURACJA BAZY WYNIKÓW (Google Sheets)
+//  Wklej tutaj adres URL swojego Apps Script (kończy się na /exec).
+//  Jeśli zostawisz pusty ('') — gra używa lokalnej pamięci przeglądarki.
+const SHEETS_URL = '';
+// ===========================================================
 
-function loadLeaderboard() {
-  try {
-    leaderboard = JSON.parse(localStorage.getItem('lb67speed') || '[]');
-  } catch { leaderboard = []; }
+let leaderboard = [];
+const useCloud = () => SHEETS_URL.trim().length > 0;
+
+async function loadLeaderboard() {
+  if (useCloud()) {
+    leaderboardEl.innerHTML = '<div class="empty">Wczytywanie rankingu…</div>';
+    try {
+      const res = await fetch(SHEETS_URL);
+      const data = await res.json();
+      leaderboard = (data.scores || []).map(e => ({ name: e.name, score: e.score, t: e.date }));
+    } catch (err) {
+      leaderboardEl.innerHTML = '<div class="empty">Nie udało się wczytać rankingu z bazy.</div>';
+      return;
+    }
+  } else {
+    try {
+      leaderboard = JSON.parse(localStorage.getItem('lb67speed') || '[]');
+    } catch { leaderboard = []; }
+  }
   renderLeaderboard();
 }
+
+// Zapis lokalny (tylko gdy nie używamy chmury)
 function saveLeaderboardStore() {
   try { localStorage.setItem('lb67speed', JSON.stringify(leaderboard)); } catch {}
 }
+
+// Wysłanie wyniku do Google Sheets
+async function pushScoreToCloud(name, score) {
+  await fetch(SHEETS_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({ name, score })
+  });
+}
+
 function renderLeaderboard(highlightIdx = -1) {
   const sorted = [...leaderboard].sort((a,b)=>b.score-a.score).slice(0,10);
   if (!sorted.length) { leaderboardEl.innerHTML = '<div class="empty">Brak wyników. Bądź pierwszy!</div>'; return; }
@@ -504,6 +558,9 @@ function endRound() {
   timerVal.textContent = '0.0';
   lastScore = count;
   finalScore.textContent = count;
+  // reset widoku: pola zapisu widoczne, komunikat o miejscu ukryty
+  saveRow.classList.remove('hidden');
+  rankInfo.classList.add('hidden');
   overlayResult.classList.remove('hidden');
   playBtn.disabled = false;
   nameInput.focus();
@@ -512,17 +569,69 @@ function endRound() {
 startBtn.addEventListener('click', initCamera);
 playBtn.addEventListener('click', startCountdown);
 retryBtn.addEventListener('click', ()=>{ overlayResult.classList.add('hidden'); startCountdown(); });
-saveBtn.addEventListener('click', ()=>{
+saveBtn.addEventListener('click', async ()=>{
   const name = (nameInput.value.trim() || 'Anonim').slice(0,14);
   const t = Date.now();
-  leaderboard.push({ name, score: lastScore, t });
-  lastSaved = t;
-  saveLeaderboardStore();
-  renderLeaderboard(t);
+  saveBtn.disabled = true;
+  let ok = true;
+  if (useCloud()) {
+    const prev = saveBtn.textContent;
+    saveBtn.textContent = 'Zapisywanie…';
+    try {
+      await pushScoreToCloud(name, lastScore);
+      await loadLeaderboard();          // odśwież ranking z bazy
+    } catch (err) {
+      ok = false;
+      alert('Nie udało się zapisać wyniku do bazy. Sprawdź połączenie.');
+    }
+    saveBtn.textContent = prev;
+  } else {
+    leaderboard.push({ name, score: lastScore, t });
+    lastSaved = t;
+    saveLeaderboardStore();
+    renderLeaderboard(t);
+  }
+  saveBtn.disabled = false;
+  if (ok) {
+    showRankInfo(lastScore);   // pokaż zajęte miejsce
+  }
+});
+
+// Oblicza miejsce dla danego wyniku i pokazuje komunikat na ekranie wyniku.
+function showRankInfo(score) {
+  const sorted = [...leaderboard].sort((a,b)=>b.score-a.score);
+  const total = sorted.length;
+  // miejsce = liczba wyników wyższych od naszego + 1 (remisy dzielą miejsce)
+  const place = sorted.filter(e => e.score > score).length + 1;
+
+  let medal = '';
+  if (place === 1) medal = '🥇';
+  else if (place === 2) medal = '🥈';
+  else if (place === 3) medal = '🥉';
+  else medal = '🏅';
+
+  rankPlace.innerHTML = `<span class="medal">${medal}</span>${place}. miejsce`;
+
+  let detail = `na ${total} ${total === 1 ? 'wynik' : (total < 5 ? 'wyniki' : 'wyników')}`;
+  if (place === 1) detail = `Najlepszy wynik! (na ${total})`;
+  rankDetail.textContent = detail;
+
+  saveRow.classList.add('hidden');   // schowaj pola zapisu
+  rankInfo.classList.remove('hidden'); // pokaż komunikat o miejscu
+}
+
+// Przycisk po pokazaniu miejsca — wraca do gry.
+doneBtn.addEventListener('click', ()=>{
   overlayResult.classList.add('hidden');
+  rankInfo.classList.add('hidden');
+  saveRow.classList.remove('hidden');
   nameInput.value = '';
 });
 clearBtn.addEventListener('click', ()=>{
+  if (useCloud()) {
+    alert('Ranking jest w Google Sheets — aby wyczyścić, usuń wiersze bezpośrednio w arkuszu.');
+    return;
+  }
   leaderboard = [];
   saveLeaderboardStore();
   renderLeaderboard();
